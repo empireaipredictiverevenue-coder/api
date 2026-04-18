@@ -1,8 +1,12 @@
 {
   "crons": [
     {
-      "path": "/api/ali_extract",
+      "path": "/api/radar_nws",
       "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/ali_extract",
+      "schedule": "*/15 * * * *"
     }
   ]
 }
