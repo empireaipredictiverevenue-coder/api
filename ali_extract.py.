@@ -1,1 +1,38 @@
+from http.server import BaseHTTPRequestHandler
+import json
+from supabase import create_client
 
+# CONFIG
+URL = "https://clmuzwbagzcyymfqswbn.supabase.co"
+KEY = "sb_publishable_fFVaZgkLz7v8kQMtSJ1VKg_okCuKxyx"
+supabase = create_client(URL, KEY)
+
+class handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        # 1. FETCH NEW STRIKES
+        data = supabase.table("radar_targets").select("*").eq("campaign_status", "NEW").execute()
+        
+        processed_count = 0
+        for strike in data.data:
+            # 2. THE ALI LOGIC (SIMULATED FOR NOW)
+            # In V226, we hook this to Claude
+            damage_score = 85 if "Hurricane" in strike['storm_event'] else 40
+            revenue = 15000 if damage_score > 50 else 2500
+            
+            # 3. SAVE THE FORGED REPORT
+            supabase.table("forged_reports").insert({
+                "target_id": strike['id'],
+                "business_name": strike['business_name'],
+                "damage_score": damage_score,
+                "est_revenue": revenue,
+                "forged_summary": f"Target shows {damage_score}% damage probability based on {strike['storm_event']}."
+            }).execute()
+
+            # 4. MARK AS PROCESSED
+            supabase.table("radar_targets").update({"campaign_status": "REPORT FORGED"}).eq("id", strike['id']).execute()
+            processed_count += 1
+
+        self.send_response(200)
+        self.send_header('Content-type', 'application/json')
+        self.end_headers()
+        self.wfile.write(json.dumps({"status": "Success", "extracted": processed_count}).encode())
