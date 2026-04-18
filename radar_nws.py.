@@ -1,1 +1,42 @@
+from http.server import BaseHTTPRequestHandler
+import json
+import requests
+from supabase import create_client
 
+# CONFIG
+SB_URL = "https://clmuzwbagzcyymfqswbn.supabase.co"
+SB_KEY = "sb_publishable_fFVaZgkLz7v8kQMtSJ1VKg_okCuKxyx"
+supabase = create_client(SB_URL, SB_KEY)
+
+class handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        # 1. SCAN THE US FOR ALERTS
+        # NWS requires a User-Agent header (just your app name)
+        headers = {'User-Agent': 'EmpireAI-Pulse-Bot'}
+        response = requests.get('https://api.weather.gov/alerts/active', headers=headers)
+        alerts = response.json().get('features', [])
+
+        new_strikes = 0
+        # 2. FILTER FOR "REVENUE" STORMS
+        target_events = ["Tornado Warning", "Severe Thunderstorm Warning", "High Wind Warning"]
+
+        for alert in alerts:
+            event = alert['properties']['event']
+            if event in target_events:
+                # 3. RECORD THE STRIKE
+                headline = alert['properties']['headline']
+                area = alert['properties']['areaDesc']
+                
+                supabase.table("radar_targets").insert({
+                    "user_id": "00000000-0000-0000-0000-000000000000", # Guest ID
+                    "business_name": "PENDING IDENTIFICATION",
+                    "storm_event": event,
+                    "address": area,
+                    "storm_severity": alert['properties']['severity']
+                }).execute()
+                new_strikes += 1
+
+        self.send_response(200)
+        self.send_header('Content-type', 'application/json')
+        self.end_headers()
+        self.wfile.write(json.dumps({"status": "Success", "new_strikes": new_strikes}).encode())
